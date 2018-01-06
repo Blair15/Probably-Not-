@@ -1,96 +1,126 @@
 import praw
 from praw.models import MoreComments
 
-reddit = praw.Reddit('ProbablyNotBot', 
-                     user_agent='testing script by /u/ProbablyNotBot')
 
-## get the Submission model, NOT iterable
-submission = reddit.submission(id='7oc5vb')
+def main():
 
-## Take a string and process such that only alpha characters remain
-def makeAlpha(comment):
-    lowerComment = comment.lower()
-    alphaComment = ""
-    for character in lowerComment:
-        if character.isalpha():
-            alphaComment += character 
-    return alphaComment
+    reddit = praw.Reddit('ProbablyNotBot', 
+                          user_agent='testing script by /u/ProbablyNotBot')
 
-## return true if "is it just me" is found within the comment
-def justMePresent(alphaComment):
-    iijmIndex = alphaComment.find("isitjustme")
-    iijmPresent = (iijmIndex != -1) 
-    return  (iijmPresent, iijmIndex)
+    ## get the Submission model, NOT iterable
+    submission = reddit.submission(id='7oj50r')
 
-## check to see if the comment contains "does any(one|body) else"
-def doesAnyoneElsePresent(alphaComment):
-    anyBODYelsePresent = alphaComment.find("doesanybodyelse")
-    anyONEelsePresent = alphaComment.find("doesanyoneelse") 
-    if anyBODYelsePresent != -1:
-        return (True, anyBODYelsePresent, "body")
-    elif anyONEelsePresent != -1:
-        return (True, anyONEelsePresent, "one")
-    return (False, -1, "")
+    ## Take a string and process such that only alpha characters remain
+    def makeAlpha(comment):
+        lowerComment = comment.lower()
+        alphaComment = ""
+        for character in lowerComment:
+            if character.isalpha():
+                alphaComment += character 
+        return alphaComment
 
-## check the submission title and body to see if iijm and dae is present
-## if this function returns true we're going to post a new top-level reply
-def checkTitleAndBody(submission):
+    ## return true if "is it just me" is found within the comment
+    def justMePresent(alphaComment):
+        iijmIndex = alphaComment.find("isitjustme")
+        iijmPresent = (iijmIndex != -1) 
+        return  (iijmPresent, iijmIndex)
 
-    subTitle = submission.title
-    alphaTitle = makeAlpha(subTitle)
-    bothInTitle = justMePresent(alphaTitle) and doesAnyoneElsePresent(alphaTitle)
+    ## check to see if the comment contains "does any(one|body) else"
+    def doesAnyoneElsePresent(alphaComment):
+        anyBODYelsePresent = alphaComment.find("doesanybodyelse")
+        anyONEelsePresent = alphaComment.find("doesanyoneelse") 
+        if anyBODYelsePresent != -1:
+            return (True, anyBODYelsePresent, "body")
+        elif anyONEelsePresent != -1:
+            return (True, anyONEelsePresent, "one")
+        return (False, -1, "") 
 
-    subBody = submission.selftext
-    alphaBody = makeAlpha(subBody)
-    bothInBody = justMePresent(alphaBody) and doesAnyoneElsePresent(alphaBody) 
+    ## return True if we've already replied to the comment passed
+    def alreadyReplied(comment):
+        authors = []
+        for reply in comment.replies:
+            authors.append(reply.author)
+        probBot = reddit.user.me()
+        return probBot in authors
 
-    return bothInTitle or bothInBody 
+    ## build the markdown formatted comment depending on whether dae or iijm
+    ## occurs first in the comment
+    def buildReply(daeIndex, iijmIndex, oneOrBody):
+        markdownReply = ""
+        if (daeIndex < iijmIndex):
+            markdownReply += ">Does any" + oneOrBody + " else\n\nProbably.\n\n"
+            markdownReply += ">is it just me\n\nProbably not.\n\n"
+        else:
+            markdownReply += ">Is it just me\n\nProbably not.\n\n"
+            markdownReply += ">does any" + oneOrBody + " else\n\nProbably.\n\n"
+        return markdownReply
 
-## return True if we've already replied to the comment passed
-def alreadyReplied(comment):
-    authors = []
-    for reply in comment.replies:
-        authors.append(reply.author)
-    probBot = reddit.user.me()
-    return probBot in authors
+    ## we want to check both the title and the body of the submission for iijm
+    ## and dae, and if present check all top-level authors to make sure we've not
+    ## already posted a top-level comment, if not then shit-post.
+    ## return True if shit-posted 
+    def checkTitleandBody(submission):
+        submission.comments.replace_more(limit=None)
+        subTitle = submission.title
+        subBody = submission.selftext
+        alphaTitle = makeAlpha(subTitle)
+        alphaBody = makeAlpha(subBody)
 
-## build the markdown formatted comment depending on whether dae or iijm
-## occurs first in the comment
-def buildReply(daeIndex, iijmIndex, oneOrBody):
-    markdownReply = ""
-    if (daeIndex < iijmIndex):
-        markdownReply += ">Does any" + oneOrBody + " else\n\nProbably.\n\n"
-        markdownReply += ">Is it just me\n\nProbably not.\n\n"
-    else:
-        markdownReply += ">Is it just me\n\nProbably not.\n\n"
-        markdownReply += ">Does any" + oneOrBody + " else\n\nProbably.\n\n"
-    return markdownReply
+        ## check to see if we have a BINGO in either title or body
+        iijmPresentTitle, iijmIndexTitle = justMePresent(alphaTitle)
+        daePresentTitle, daeIndexTitle, oneOrBodyTitle = doesAnyoneElsePresent(alphaTitle)
+        iijmPresentBody, iijmIndexBody = justMePresent(alphaBody)
+        daePresentBody, daeIndexBody, oneOrBodyBody = doesAnyoneElsePresent(alphaBody) 
 
-## this function will have to iterate through comments, checking for iijm and dae,
-## and if found then post a reply to the comment with our standard response only
-## if we haven't done so before
-def checkComments(submission):
+        ## get the info needed to build a reply depending on a title
+        ## or body bingo
+        if (iijmPresentTitle and daePresentTitle):
+            oneOrBody = oneOrBodyTitle
+            daeIndex = daeIndexTitle
+            iijmIndex = iijmIndexTitle
+        elif (iijmPresentBody and daePresentBody):
+            oneOrBody = oneOrBodyBody
+            daeIndex = daeIndexBody
+            iijmIndex = iijmIndexBody
 
-    submission.comments.replace_more(limit=None)
-
-    ## this gives comments breadth-first, can't see any advantage to doing
-    ## depth first
-    for comment in submission.comments.list():
-        commentBody = comment.body
-        print(commentBody)
-        alphaComment = makeAlpha(commentBody)
-        iijmPresent, iijmIndex = justMePresent(alphaComment) 
-        daePresent, daeIndex, oneOrBody = doesAnyoneElsePresent(alphaComment)
-
-        if iijmPresent and daePresent:
-            if not alreadyReplied(comment) and (comment.author != reddit.user.me()):
+        if (iijmPresentTitle and daePresentTitle) or (iijmPresentBody and daePresentBody):
+            ## check to make sure we haven't already posted a top-level comment
+            authors = []
+            for topLevelComment in submission.comments:
+                authors.append(topLevelComment.author)
+            probBot = reddit.user.me()
+            if probBot not in authors:
                 print("***BINGO BANGO***")
-                print(comment.author)
-                print(commentBody)
                 markdownReply = buildReply(daeIndex, iijmIndex, oneOrBody)
-                comment.reply(markdownReply)
-            
+                submission.reply(markdownReply)
+                print("***posted***")
+                return True
+        return False 
 
-checkComments(submission)
+    ## this function will have to iterate through comments, checking for iijm and dae,
+    ## and if found then post a reply to the comment with our standard response only
+    ## if we haven't done so before. Return True if shit-post, False if not
+    def checkComments(submission):
+ 
+        submission.comments.replace_more(limit=None)
 
-print( reddit.user.me() )
+        ## this gives comments breadth-first, can't see any advantage to doing
+        ## depth first
+        for comment in submission.comments.list():
+            commentBody = comment.body
+            alphaComment = makeAlpha(commentBody)
+            iijmPresent, iijmIndex = justMePresent(alphaComment) 
+            daePresent, daeIndex, oneOrBody = doesAnyoneElsePresent(alphaComment)
+
+            if iijmPresent and daePresent:
+                if not alreadyReplied(comment) and (comment.author != reddit.user.me()):
+                    print("***BINGO BANGO***")
+                    print(comment.author)
+                    print(commentBody)
+                    markdownReply = buildReply(daeIndex, iijmIndex, oneOrBody)
+                    comment.reply(markdownReply)
+                    return True
+        return False 
+
+if __name__ == '__main__':
+    main()
