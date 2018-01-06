@@ -4,12 +4,6 @@ from praw.models import MoreComments
 
 def main():
 
-    reddit = praw.Reddit('ProbablyNotBot', 
-                          user_agent='testing script by /u/ProbablyNotBot')
-
-    ## get the Submission model, NOT iterable
-    submission = reddit.submission(id='7oj50r')
-
     ## Take a string and process such that only alpha characters remain
     def makeAlpha(comment):
         lowerComment = comment.lower()
@@ -121,6 +115,19 @@ def main():
                     comment.reply(markdownReply)
                     return True
         return False 
+
+    reddit = praw.Reddit('ProbablyNotBot', 
+                          user_agent='testing script by /u/ProbablyNotBot')
+
+    ## These are the subreddits to monitor new posts for BINGOs
+    subreddit = reddit.subreddit('FortNiteBR')
+    
+    for submission in subreddit.stream.submissions():
+        print(submission.shortlink)
+        checkTitleandBody(submission)
+        checkComments(submission)
+
+
 
 if __name__ == '__main__':
     main()
