@@ -120,12 +120,25 @@ def main():
     ## this only checks a single comment for occurences of iijm and dae
     ## we'll use it in conjunction with comment streams
     def checkSingleComment(comment):
-        comment.refresh()
+        ## because we're using a comment stream we have to call refresh
+        ## on the comment object to get its replies
+        ## it seems that refreshing occasionally throws a ClientException
+        try:
+            comment.refresh()
+        except praw.exceptions.ClientException:
+            print("SLEEPING FOR 5 SECONDS", comment.permalink())
+            time.sleep(5)
+            try:
+                comment.refresh()
+            except:
+                return
+
         commentBody = comment.body
         alphaComment = makeAlpha(commentBody)
         iijmPresent, iijmIndex = justMePresent(alphaComment) 
         daePresent, daeIndex, oneOrBody = doesAnyoneElsePresent(alphaComment)
 
+           
         if iijmPresent and daePresent:
             if not alreadyReplied(comment) and (comment.author != reddit.user.me()):
                 print("***BINGO BANGO***")
@@ -138,10 +151,11 @@ def main():
                           user_agent='testing script by /u/ProbablyNotBot')
 
     ## These are the subreddits to monitor new posts for BINGOs
-    subreddit = reddit.subreddit('ProbablyNotPractice')
+    #subredditToCheck = reddit.subreddit('ProbablyNotPractice')
 
-    for comment in reddit.subreddit('ProbablyNotPractice').stream.comments():
+    for comment in reddit.subreddit('FortNiteBR+AskReddit+Funny+2007scape+Videos+Pics+MildlyInteresting').stream.comments():
        checkSingleComment(comment)
+       print(comment.fullname)
  
 
 if __name__ == '__main__':
