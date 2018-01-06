@@ -47,6 +47,7 @@ def main():
         else:
             markdownReply += ">Is it just me\n\nProbably not.\n\n"
             markdownReply += ">does any" + oneOrBody + " else\n\nProbably.\n\n"
+        markdownReply += "^(Yes, I'm a bot. If I've gone rogue then please contact /u/Buff-Randit and shout at him!)"
         return markdownReply
 
     ## we want to check both the title and the body of the submission for iijm
@@ -116,18 +117,32 @@ def main():
                     return True
         return False 
 
+    ## this only checks a single comment for occurences of iijm and dae
+    ## we'll use it in conjunction with comment streams
+    def checkSingleComment(comment):
+        comment.refresh()
+        commentBody = comment.body
+        alphaComment = makeAlpha(commentBody)
+        iijmPresent, iijmIndex = justMePresent(alphaComment) 
+        daePresent, daeIndex, oneOrBody = doesAnyoneElsePresent(alphaComment)
+
+        if iijmPresent and daePresent:
+            if not alreadyReplied(comment) and (comment.author != reddit.user.me()):
+                print("***BINGO BANGO***")
+                print(comment.author)
+                print(commentBody)
+                markdownReply = buildReply(daeIndex, iijmIndex, oneOrBody)
+                comment.reply(markdownReply)
+
     reddit = praw.Reddit('ProbablyNotBot', 
                           user_agent='testing script by /u/ProbablyNotBot')
 
     ## These are the subreddits to monitor new posts for BINGOs
-    subreddit = reddit.subreddit('FortNiteBR')
-    
-    for submission in subreddit.stream.submissions():
-        print(submission.shortlink)
-        checkTitleandBody(submission)
-        checkComments(submission)
+    subreddit = reddit.subreddit('ProbablyNotPractice')
 
-
+    for comment in reddit.subreddit('ProbablyNotPractice').stream.comments():
+       checkSingleComment(comment)
+ 
 
 if __name__ == '__main__':
     main()
